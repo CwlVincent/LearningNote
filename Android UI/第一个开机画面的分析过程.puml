@@ -1,0 +1,185 @@
+@startuml
+
+title 第一个开机画面的过程
+
+fork
+
+:<size:20><b>fbmem帧缓冲区设备初始化过程</b></size>;
+
+start
+
+:fbmem_init初始化过程;
+
+:proc_create在/proc目
+录下创建fb文件;
+
+:register_chrdev注册
+名称为fb的字符设备;
+
+:class_create在sys/class
+目录下创建一个graphics目录，
+用来描述内核的图形系统;
+
+
+
+fork again
+
+:<size:20><b>fbmem帧缓冲区设备注册的过程</b></size>;
+
+start 
+:导出register_framebuffer过程;
+
+:unregister相同的地址的fb;
+
+:创建fb<minor>设备到/dev/graphics目录;
+
+:调用函数fb_notifier_call_chain通知帧控制台，
+有新的帧缓冲区设备被注册到内核中;
+
+
+fork again
+
+:<size:20><b>fbcon帧缓冲区控制台初始化过程</b></size>;
+
+start
+
+:帧缓冲区控制台初始化过程;
+
+:注册监听事件fbcon_event_notifier;
+
+:调用函数device_create来创建类别为grahpics设备fbcon;
+
+:收到监听事件之后，调用fbcon_fb_registered，
+设置con2fb_map_boot初始的控制台和帧缓冲区硬件设备的关系;
+
+:fbcon_select_primary检查当前帧缓冲区硬件设备
+是否有一个主的帧缓冲区的硬件设备;
+
+if("全局变量info_idx表示系统当前所使用的帧缓冲区硬件的编号是否为-1") then (true)
+
+	:从全局数组con2fb_map_boot中检查是否存在
+	一个控制台编号与当前注册的帧设备编号idex对应;
+	:存在的话，会将当前idx保存到全局变量info_idx中;
+	:再调用fbcon_takeover来初始化系统所使用的控制台，
+	参数是1的话，表示要显示第一个开机画面;
+
+else (no)
+	:从全局数组con2fb_map_boot中检查是否存在一个
+	控制台编号与当前注册帧设备编号idex对应;
+	:存在的话，会调用set_con2fb_map来调整当前所
+	注册的帧缓冲区硬件设备与控制台的映射关系，
+	即con2fb_map和con2fb_map_boot的值;
+
+endif
+
+
+fork again
+
+:<size:20><b>fbcon帧缓冲区控制台设置的过程</b></size>;
+
+start
+
+:fbcon_takeover设置系统所使用的控制台;
+
+:全局变量logo_show默认是FBCON_LOGO_DONTSHOW
+是表示不显示第一个开机画面，FBCON_LOGO_CANSHOW
+是表示显示第一个开机画面;
+
+:循环将当前可用的控制台的编号都映射到当前正在注册
+的帧缓冲区硬件设备的编号info_idx中去，表示当前可
+用的控制台与缓冲区硬件设备的实际映射关系;
+
+:函数take_over_console用来初始化系统当前所使用
+的控制台，实际是向系统注册一系列的回调函数，返回
+不为0，表示初始化失败;
+
+:初始化失败的话，会将全局数组con2fb_mpa的各个元
+素的值都设置为-1，表示系统当前可用的控制台还没有
+映射到实际的帧缓冲区硬件设备中区，全局变量
+info_idx的值重新设置为-1;
+
+
+fork again
+
+:<size:20><b>fbcon帧缓冲区控制台准备画面内容的过程</b></size>;
+
+start
+
+:fbcon_init决定是否准备第一个
+开机画面的内容，初始化控制台;
+
+:正在初始化的控制台用参数vc来描述，
+而它的成员变量vc_num用来描述当前
+正在初始化的控制台的编号;
+
+:通过这个编号，找到全局数组con2fb_map
+中找到对应的帧缓存区硬件设备的编号;
+
+:通过硬件编号之后，就可以在另外一个全局数组中
+registered_fb找到fb_info结构体info，用来
+描述当前正在初始化的控制台所对应的帧缓冲区硬件设备;
+
+:参数vc的成员变量vc_display_fg用来描述当前系统
+可见的控制台，它是一个类型为vc_data**的指正。
+从这里就可以看出，最终得到的vc_data结构体svc
+就是用来描述系统当前可见的控制台;
+
+:变量logo开始的时候被设置为1，
+表示需要显示第一个开机画面;
+
+note right:A.参数vc和变量svc指向的不是同一个vc_data结构体，\n即当前正在初始化的控制台不是系统当前可见的控制台。\nB.全局变量logo_shown的值等于FBCON_LOGO_DONTSHOW,\n即系统不需要显示第一个开机画面。\nC.当前正在初始化的控制台所对应的帧缓冲区\n硬件设备的显示方式被设置为文本方式，\n即info->fix.type的值等于FB_TYPE_TEXT.
+
+:fbcon_prepare_logo来准备要
+显示的第一个开机的画面的内容;
+
+:从函数fb_prepare_logo返回之后，如果要显示的
+第一个开机画面所占用的控制台行数小于等于参数vc
+所描述的控制台的最大行数，并且全局变量logo_show
+的值不等于FBCON_LOGO_DONTSHOW，那么就说明前面
+所提到的第一个开机画面可以显示在控制台中，这时候
+logo_show的值就会被设置为FBCON_LOGO_DRAW，
+表示第一个开机画面处于等待渲染的状态;
+
+:fb_prepare_logo获得参数info所描述的
+帧缓冲区硬件设备的颜色深度depth，接着
+再调用函数fb_find_logo来获得要显示的
+第一个开机画面的内容，并且保存在全局
+变量fb_logo的成员变量logo中;
+
+:fb_find_logo根据参数depth的值
+以及不同的编译选项来选择第一个
+开机画面的内容，并且保存在变量
+logo中的返回个调用者;
+
+
+
+fork again
+
+:<size:20><b>fbcon帧缓冲区控制台切换和显示的过程</b></size>;
+
+start
+
+:fbcon_switch决定是否
+需要显示第一个开机画面;
+
+:由于前面在准备第一个
+开机画面的内容的时候，
+全局变量logo_show的值
+被设置为FBCON_LOGO_DRAW;
+
+:调用函数fb_show_logo来
+显示第一个开机画面。在显示
+之前，这个函数会将全局变量
+logo_shown的值设置为
+fg_console，后者表示系统
+当前可见的控制台编号;
+
+:调用函数fb_show_logo_line
+进一步执行渲染的第一个开机画面
+的操作，初始化logo的图像的参数;
+
+:调用函数fb_do_show_logo来
+真正执行渲染第一个开机画面的操作;
+
+
+@enduml
