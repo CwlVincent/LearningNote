@@ -1,0 +1,64 @@
+@startuml
+
+title 第二个开机画面的分析过程
+
+fork
+
+:<b><size:20>init进程的分析</size></b>;
+start
+if("当前进程名称argv[0]是否不等于uevented") then
+note right : uevented是sbin/uevented可执行文件,用来\n处理uevent事件的，即用来管理系统设备的。\n它实际的入口函数是uevented_main，实现\n在/system/core/init/ueventd.c中。uevented\n进程通过socket接口来和内核通信，以便于可以\n监控系统设备事件。调用系统device_create函数\n创建名称为"hello"的字符设备，这时候内核就会\n想这个socket发送一个设备增加的事件，uevented\n进程通过这个socket获得了这个设备的增加事件之后，\n就会在/dev目录下创建一个名称为"hello"的设备文件。\n用户空间应用程序就可以通过设备文件/dev/hello来和\n驱动程序hello进行通信了
+	:调用函数queue_builtin_action来向init进程中的一\n个待执行action队列增加一个名称为“console_init”的\naction，用来显示第二个开机画面;
+	:queue_builtin_action函数将action_list列表中的\naction添加到action_queue列表中区，以便于init进\n程能够执行他们;
+	while ("1") is (Y)
+		if("action_queue列表是否不为空") then (Y)
+			:init进程就会将移除action_queue列表头的\naction，并执行这个被移除的action,因此\nconsole_init_action会被执行;
+		endif
+		if("系统是否有进程需要重启") then (Y)
+			:在启动脚本/init.rc中，可以指定一个进程退\n出之后自动重启，所以这里会检查是否存在需\n要重启的进程，并重启;
+		endif
+		:处理系统属性变化的事件;
+		note right : 当调用函数property_set来改变\n一个系统属性值是，系统就会通过调用\nsocket(get_property_set_fd)来向init进程发送一个属性\n值改变的事件通知。init进程收到这个属性改变的\n事件之后，调用函数handle_property_set_fd来\n做相应的处理。
+		:处理一种称为"chorded keyboard"的键盘输入事件;
+		note right : 这样的类型chorded keyboard的键\n盘设备通过不同的按键组合来描述不同的命令或者\n操作，对应的设备/dev/keyboard。\nget_keychord_fd来获得fd，监控它的输入事件，\n并调用handle_keychord来处理。
+		:回收僵尸进程;
+		note right : 父进程不等子进程结束就退出，子进\n程结束的时候，就会变成僵尸进程，占用系统的资\n源。为了回收僵尸进程，init进程安装SIGCHLD信号\n接收器，当这一的子进程结束的时候，内核就会发\n出SIGCHLD信号给init进程，init进程通过\nsocket(get_signal_fd)来结束SIGHLD信号，并调用\nhandle_signal来处理。
+		:三个fd事件机制都是使用poll机制来轮询的;
+	end while (N)
+endif
+
+
+fork again
+
+:<b><size:20>console_init_action的实现分析</size></b>;
+
+start
+
+:初始化控制台，根据内核的启动参数"androidboot.console"\n，如果有的话，通过/dev/<console>来访问系统控制台，否则通过\n/dev/console来访问系统控制台，因此have_console被设置为1;
+:调用函数load_565rle_image来显示第二个开机画面;
+if("/initlogo.rle文件存在的话") then (Y)
+	:调用函数vt_set_mode来设置显示方式为图像方式;
+	:调用open函数打开/initlogo.rle,并获得fd;
+	:调用fstat获得文件的大小;
+	:调用函数mmap来把文件/initlogo.rle映射到init进程\n的地址空间来，便于读取内容;
+	:调用函数fb_open来打开设备文件/dev/graphics/fb0\n，并将fb0内容映射到init进程的地址空间来;
+	:通过IO控制命令FBIOGET_FSCREENINFO和FBIOGET_VSCREENINFO\n来获得帧缓冲硬件设备的固定信息和可变信息;
+	note right : 固定信息使用fb_fix_screeninfo结构\n体来描述，保存帧缓冲区硬件设备固有的特性，初始化之\n后，就不会改变，比如屏幕的大小以及物理地址等信息.可\n变信息用fb_var_screeninfo结构体来描述，保存的是\n帧缓冲区硬件设备可变的特性，在系统运行的期间是可以\n改变的，如屏幕的分辨率、深度即颜色格式等。
+	:使用宏fb_width和fb_height来获得屏幕所使用的分辨\n率，得到最大的写入字节;
+	:rle565的4个字节：前2个字节的序列个数保存在变量n中\n，后面2个字节的颜色值用来写入到帧缓存区硬件设备中\n去，调用函数android_memset16将文件inintlogo.rle\n读取出来的颜色值写入到帧缓冲区硬件设备中去;
+	note right : 565rle,可以使用4个字节来描述一个连续\n的具有相同的颜色值得序列，在rle565格式中，前2个\n字节用来描述序列的个数，后2个字节用来描述具体的颜色\n，其中RGB分别是5，6，5位
+	:android_memset16将参数val写入到地址ptr中去之前\n，先将count>>1,相应的调用前，需要将具有相同颜色值\n得序列的个数乘以2;
+	:调用函数munmap来注销文件/initlogo.rle在进程中的映射;
+	:调用close来关闭文件/initlogo.rle;
+	:调用函数unlink来删除目标设备上的/initlogo.rle\n文件，并不是删除ramdisk映像中的initlogo.rle文件，\n这样每次开机都能显示出来;
+	:调用fb_update来更新屏幕上的第二个开机画面;
+	note right : 在结构体fb_var_screeninfo中，除了\n使用成员变量xres和yres来描述屏幕所使用的可视分辨率\n之外，还是用成员变量xres_virtual和yres_virtual\n来描述屏幕所使用的虚拟分辨率。可视分辨率是屏幕上\n实际使用的分辨率即用户看见的分辨率，虚拟分辨率是系统\n内部使用的。它是不可见的，并且大于可视分辨率，比如\n可视分辨率800x600，那么虚拟分辨率为1600x600，从\n1600x600中取出800x600来显示，通过fb_var_screeninfo\n成员变量xoffset和yoffset值确定偏移的像素点\n的，多出来的这个部分用来用做双缓存，这样能够平滑的\n显示两个图形了。
+	:销毁文件/dev/graphics/fb0在init进程中\n的映射以及关闭文件/dev/graphics/fb0\n，通过fb_close函数来实现的;
+else (N)
+	:以文本的方式，向编号为0的控制台(/dev/tty0)\n输出“ANDROID”7️个字符;
+endif
+
+
+
+
+@enduml
