@@ -4,17 +4,17 @@ title 第三个开机画面的显示和停止的分析
 
 fork
 
-:<b><size:20>第三个开机画面由应用程序bootanimation来负责显示的</size></b>;
+:<b><size:20>第三个开机画面由应用程序</size></b>\n<b><size:20>bootanimation来负责显示的</size></b>;
 
-note right : 应用程序bootanimation的用户和用户组名称分别被设置为graphics，注意，用来启动应用程序的bootanimation的服务是disable，即init进程在启动的时候，不会主动将应用程序bootanimation启动起来。
+note right : 应用程序bootanimation的\n用户和用户组名称分别被设置为graphics，\n注意，用来启动应用程序的bootanimation\n的服务是disable，即init进程在启动的时\n候，不会主动将应用程序bootanimation启\n动起来。
 
 start
 
-:SurfaceFlinger服务启动，修改系统属性ctl.start的值通知init进程启动应用程序bootanimation，便可以显示第三个开机画面;
+:SurfaceFlinger服务启动，修改系统属性\nctl.start的值通知init进程启动应用程序\nbootanimation，便可以显示第三个开机画面;
 
-:当System进程将系统中的关键服务都启动起来;
+:当System进程将系统中的关键服务都启动起\n来;
 
-:ActiviyManagerService服务就会通知SurfaceFlinger服务来修改系统ctl.stop的值，以便于通知init进程停止执行应用程序bootanimation，即停止第三个开机画面;
+:ActiviyManagerService服务就会通知\nSurfaceFlinger服务来修改系统ctl.stop\n的值，以便于通知init进程停止执行应用程序\nbootanimation，即停止第三个开机画面;
 
 
 
@@ -25,32 +25,32 @@ fork again
 
 start 
 
-:Zygote进程在启动过程中，会将System进程启动起来;
+:Zygote进程在启动过程中，会将System进程\n启动起来;
 
-:System进程在启动过程中，会调用SurfaceFlinger类的静态成员函数instantiate来启动SurfaceFlinger服务;
+:System进程在启动过程中，会调用SurfaceFlinger类\n的静态成员函数instantiate来\n启动SurfaceFlinger服务;
 
-:System进程在启动SurfaceFlinger服务的过程中，先创建一个SurfaceFlinger实例，再将这个实例注册到Service Manager中去;
+:System进程在启动SurfaceFlinger服务的\n过程中，先创建一个SurfaceFlinger实例，\n再将这个实例注册到Service Manager\n中去;
 
-:在注册的过程中，SurfaceFlinger实例会被sp指针引用,调用成员函数onFirstRef，启动一个线程来启动第三个开机画面;
-note right : 当一个对象第一次被智能指针引用的时候，这个对象的成员函数onFirstRef就会被调用，由于SurfaceFlinger重写了父类的RefBase的成员函数onFirstRef。
+:在注册的过程中，SurfaceFlinger实例会被\nsp指针引用,调用成员函数onFirstRef，\n启动一个线程来启动第三个开机画面;
+note right : 当一个对象第一次被智能指针\n引用的时候，这个对象的成员函数onFirstRef\n就会被调用，由于SurfaceFlinger\n重写了父类的RefBase的成员函数onFirstRef。
 
-:SurfaceFlinger继承了Thread类，onFirstRef中会调用run的成员函数，系统就会创建一个新的线程，在这个线程第一次运行之前，会调用SurfaceFlinger类的成员函数readyToRun来通知SurfaceFlinger，它准备就绪了;
+:SurfaceFlinger继承了Thread类，onFirstRef\n中会调用run的成员函数，系统就会创\n建一个新的线程，在这个线程第一次运行之前\n，会调用SurfaceFlinger类的成员函数\nreadyToRun来通知SurfaceFlinger，\n它准备就绪了;
 
-note right : SurfaceFlinger在4.0以上的话，就在SurfaceFlinger::init启动bootanim服务，并在SurfaceFlinger::selectEGLConfig初始化，在4.0及以下的就在readyToRun中，初始化OPENGL，并启动服务,这里是4.0以下的代码分析。
+note right : SurfaceFlinger在4.0以上\n的话，就在SurfaceFlinger::init启动\nbootanim服务，并在\nSurfaceFlinger::selectEGLConfig初始化，在4.0及以下的就\n在readyToRun中，初始化OPENGL，并启动\n服务,这里是4.0以下的代码分析。
 
-:当这个线程准备就绪之后，就会循环执行SurfaceFlinger类的成员函数threadLoop，知道这个成员函数的返回值等于false为止;
+:当这个线程准备就绪之后，就会循环执行\nSurfaceFlinger类的成员函数threadLoop，\n知道这个成员函数的返回值等于false为止;
 
-note right : SurfaceFlinger类的成员函数onFirstRef是在System进程的主线程中调用的，它需要等待前面创建的线程准备就绪之后，再继续往前执行，这个通过调用SurfaceFlinger类的成员变量mReadytoRunBarrier所描述的一个Barrier对象的成员函数wait来实现的。每一个Barrier对象内都封装了一个条件变量(Condition Variable),而条件变量是用来同步线程的。
+note right : SurfaceFlinger类的成员\n函数onFirstRef是在System进程的主线程中\n调用的，它需要等待前面创建的线程准备就绪\n之后，再继续往前执行，这个通过调用\nSurfaceFlinger类的成员变量mReadytoRunBarrier\n所描述的一个Barrier对象的成员\n函数wait来实现的。每一个Barrier对象内\n都封装了一个条件变量(Condition Variable)\n,而条件变量是用来同步线程的。
 
-:readyToRun函数中，会对设备主屏幕以及OpenGL库进行初始化，并唤醒System进程的主线程，以便于它可以继续往前执行;
+:readyToRun函数中，会对设备主屏幕以及\nOpenGL库进行初始化，并唤醒System进程的\n主线程，以便于它可以继续往前执行;
 
-:readyToRun函数中，调用函数property_set将系统属性"ctl.start"的值设置为"bootanim"，表示要启动应用程序bootanimation;
+:readyToRun函数中，调用函数property_set\n将系统属性"ctl.start"的值设置为"bootanim"\n，表示要启动应用程序bootanimation;
 
-:当系统属性发送改变时，init进程接收到通知之后，调用函数handle_property_set_fd来处理的;
+:当系统属性发送改变时，init进程接收到通知\n之后，调用函数handle_property_set_fd\n来处理的;
 
-note right : init进程通过socket来接收系统属性变化的事件。每一个系统属性变化的事件的内容同时通过pro_msg对象来描述的。在prop_msg对象对，成员变量name表示属性的名称，value表示属性的值。系统属性分为两种类型，一种是普通类型，一种是控制类型，改变系统属性需要权限，会在handle_proerty_set_fd处理通过check_control_perms或者check_perms检查是否具有相应的权限。
+note right : init进程通过socket来接收\n系统属性变化的事件。每一个系统属性变化\n的事件的内容同时通过pro_msg对象来描述的\n。在prop_msg对象对，成员变量name表示\n属性的名称，value表示属性的值。系统属性\n分为两种类型，一种是普通类型，一种是控\n制类型，改变系统属性需要权限，会在\nhandle_proerty_set_fd处理通过check_control_perms\n或者check_perms检查是否具有相应的权限。
 
-:当前发送变化的系统属性名称为"ctl.start",值为bootanim，会通过msg_start或者msg_stop来启动bootanim服务，msg_start会调用service_find_by_name来找到"bootanim"的服务信息，保存到service结构体svc中，并调用函数service_start启动对应的服务;
+:当前发送变化的系统属性名称为"ctl.start"\n,值为bootanim，会通过msg_start或者\nmsg_stop来启动bootanim服务，\nmsg_start会调用service_find_by_name来找到\n"bootanim"的服务信息，保存到service\n结构体svc中，并调用函数service_start启\n动对应的服务;
 
 
 fork again
@@ -61,53 +61,104 @@ start
 
 if("系统属性debug.sf.nobootnimation的值是否不等于") then (N)
 
-:启动Binder线程池，并创建一个BootAnimation对象;
+:启动Binder线程池，并创建一个\nBootAnimation对象;
 
-:BootAnimation间接继承RefBase，并且重写RefBase类的成员函数onFirstRef，因此当一个BootAnimation对象第一次被智能指针引用时，这个BootAnimation对象的成员函数onFirstRef就会被调用;
+:BootAnimation间接继承RefBase，并且重写\nRefBase类的成员函数onFirstRef，\n因此当一个BootAnimation对象第一次被智能\n指针引用时，这个BootAnimation对象的\n成员函数onFirstRef就会被调用;
 
-:在onFirstRef函数中，使用SurfaceComposerClient类来关联SurfaceFlinger服务的意外死亡通知;
+:在onFirstRef函数中，使用SurfaceComposerClient\n类来关联SurfaceFlinger服务\n的意外死亡通知;
 
-:BootAnimation继承了Thread类，重写了run，所以在run之前会调用readyToRun，进行一些初始化的工作，最后再调用threadLoop来显示第三个开机画面;
+:BootAnimation继承了Thread类，重写了\nrun，所以在run之前会调用readyToRun，\n进行一些初始化的工作，\n最后再调用threadLoop来显示第三个开机画面;
 
-:readyToRun中，SurfaceComposerClient中createSurface创建内部Binder代理SurfaceLayer，来和SurfaceFlinger服务通信;
+:readyToRun中，SurfaceComposerClient中\ncreateSurface创建内部Binder代理\nSurfaceLayer，来和SurfaceFlinger服务\n通信;
 
-note right : 调用SurfaceControl对象的control的成员函数getSurface会返回一个Surface对象s。这个Surface对象s内部也有一个类型为SurfaceLayer的Binder代理对象mSurface，这个和之前的SurfaceLayer是同一个，这样Surface对象s也可以通过其内部的Binder代理对象mSurface和SurfaceFlinger服务通信, Surface类继承了ANativeWindow类。ANativeWindow类是连接OpenGL和Android窗口系统的桥梁，即OpenGL需要通过ANativeWindow类来间接地Android窗口系统。这种桥梁关系是通过EGL库来建立的，所有以egl为前缀的函数名均为EGL库提供接口。
+note right : 调用SurfaceControl对象的\ncontrol的成员函数getSurface会返回一\n个Surface对象s。这个Surface对象s内部\n也有一个类型为SurfaceLayer的Binder\n代理对象mSurface，这个和之前的SurfaceLayer\n是同一个，这样Surface对象s也可以通\n过其内部的Binder代理对象mSurface和\nSurfaceFlinger服务通信, Surface类\n继承了ANativeWindow类。ANativeWindow类\n是连接OpenGL和Android窗口系统的桥梁，\n即OpenGL需要通过ANativeWindow类来间接\n地Android窗口系统。这种桥梁关系是通过\nEGL库来建立的，所有以egl为前缀的函数名\n均为EGL库提供接口。
 
-:根据BootAnimation类的成员变量mAndroidAnimation是一个布尔变量，当它的值等于true的时候，那么就说明需要显示的第三个开机画面是Android系统默认的开机动画，否则的话，第三个开机画面是用户自定义的开机动画，到此为止线程的初始化工作就执行完成了;
+:根据BootAnimation类的成员变量mAndroidAnimation\n是一个布尔变量，当它的值等于\ntrue的时候，那么就说明需要显示的第三个\n开机画面是Android系统默认的开机动画，\n否则的话，第三个开机画面是用户自定义的开\n机动画，到此为止线程的初始化工作就执行\n完成了;
 
-note right : 每一个EGLSurface对象surface有一个关联的ANativeWindow对象。这个ANativeWindow对象是通过函数eglCreateWindowSurface的第三个参数来指定的。在这个场景中，这个ANativeWindow对象正好对应于前面创建的Surface对象。每当OpenGL需要绘图的时候，就会找到前面所设置的绘图表面，即EGLSurface对象surface。有了EGLSurface对象surface之后，就可以找到与它关联的ANativeWindow对象，即Surface对象s。有了Surface对象s之后，就可以通过其内部的Binder代理对象mSurface来请求SurfaceFlinger服务返回帧缓冲区硬件设备的一个图形访问接口。这样，OpenGl最终就可以将要绘制的图形渲染到帧缓冲区硬件设备中区，即显示在屏幕上。屏幕的大小，即宽度和高度，可以通过函数eglQuerySurface来获得。
+note right : 每一个EGLSurface对象\nsurface有一个关联的ANativeWindow对象。\n这个ANativeWindow对象是通过函数\neglCreateWindowSurface的第三个参数来指定的。\n在这个场景中，这个ANativeWindow对象\n正好对应于前面创建的Surface对象。每当\nOpenGL需要绘图的时候，就会找到前面所设置\n的绘图表面，即EGLSurface对象surface。\n有了EGLSurface对象surface之后，就\n可以找到与它关联的ANativeWindow对象，\n即Surface对象s。有了Surface对象s之后，\n就可以通过其内部的Binder代理对象mSurface来请求\nSurfaceFlinger服务返回帧缓冲区\n硬件设备的一个图形访问接口。这样，\nOpenGl最终就可以将要绘制的图形渲染到帧缓冲区\n硬件设备中区，即显示在屏幕上。屏幕的\n大小，即宽度和高度，可以通过函数\neglQuerySurface来获得
 
+endif
 
 fork again
 
-:<b><size:20>BootAnimation的成员函数threadLoop的分析</size></b>;
+:<b><size:20>BootAnimation的成员函数\nthreadLoop的分析</size></b>;
 
 start
 
 if("mAndroidAnimation等于true") then (Y)
 	
-	:调用成员函数android来显示系统默认的开机动画;
+	:调用成员函数android来显示系统默认\n的开机动画;
 	
-	:调用initTexture将两张图片内容分别创建两个纹理对象，通过混合渲染两个纹理对象，得到一个开机画面;
+	:调用initTexture将两张图片内容分别\n创建两个纹理对象，通过混合渲染两个\n纹理对象，得到一个开机画面;
 
-	:android-logo-mask.png作为动画前景，是一个镂空的Android图像，android-logo-mask.png作为动画背景，中间包含呈45度的条纹。在每一次循环中，android-logo-shine.png图片被划分成左右两个部分内容来显示。左右两个部分的图像宽度随着时间的推移而此消彼长，这样就可以使得图片android-logo-shine.png中间的高亮条纹好像在移动一样。由于它是一个镂空的ANDROID图像，就可以看到条纹一闪一闪地划过;
+	:android-logo-mask.png作为动画前\n景，是一个镂空的Android图像，\nandroid-logo-mask.png作为动画背景，\n中间包含呈45度的条纹。在每一次循环\n中，android-logo-shine.png图片\n被划分成左右两个部分内容来显示。\n左右两个部分的图像宽度随着时间的推移而\n此消彼长，这样就可以使得图片\nandroid-logo-shine.png中间的高亮条纹好\n像在移动一样。由于它是一个镂空的\nANDROID图像，就可以看到条纹一闪\n一闪地划过;
 
-	:这个while循环语句会一直被执行，直到应用程序/system/bin/bootanimation被结束为止;
+	:这个while循环语句会一直被执行，\n直到应用程序/system/bin/bootanimation\n被结束为止;
 
 else (N)
 	
-	:调用成员函数movie来显示用户自定义的开机画面;
+	:调用成员函数movie来显示用户自定义\n的开机画面;
 
-	:如果目标设备存在压缩文件/data/local/bootanimation.zip，那么BootAnimation类的成员变量mZip就会指向他，否则的话，就会指向目标设备上的压缩文件/system/media/bootanimation.zip;
+	:如果目标设备存在压缩文件\n/data/local/bootanimation.zip，\n那么BootAnimation类的成员变量mZip就会\n指向他，否则的话，就会指向\n目标设备上的压缩文件/system/media/bootanimation.zip;
 
-	note right : 每一个压缩文件都包含一个名称为"desc.txt"的文件，用来描述用户自定义的开机动画是如何显示的
+	note right : 每一个压缩文件都包含\n一个名称为"desc.txt"的文件，\n用来描述用户自定义的开机动画是\n如何显示的
 
-	:for循环语句分析完desc.txt文件的内容后，就得到了开机动画的显示大小、速度以及片断信息，都保存到Animation对象animation，其中，每一个动画片断都使用一个Animation::Part对象来描述，并且保存在Animation对象animation的成员变量parts所描述的一个片断列表中;
+	:for循环语句分析完desc.txt文件的\n内容后，就得到了开机动画的显示大小、\n速度以及片断信息，都保存到\nAnimation对象animation，其中，每一个\n动画片断都使用一个Animation::Part\n对象来描述，并且保存在Animation\n对象animation的成员变量parts所描述\n的一个片断列表中;
 
-	:成员函数movie再断续将每一个片断所对应的png图片读取出来;
+	:成员函数movie再断续将每一个片断\n所对应的png图片读取到Animation::Frame对象中的frames\n帧列表中;
+
+	:清理屏幕，设置OPENGL的纹理显示方式\n，变量xc和yc用来描述开机动画的显示\n位置，frameDuration表示帧显示的\n事件，纳秒为单位;
+
+	:Region对象clearReg用来描述屏幕中\n除了卡机动画以外的其他区域，是用整个\n屏幕区域减去开机动画所占据的局域来得到的;
+
+	:显示方式第一层循环用来显示每一个动画\n片段，第二层的for循环用来循环显示\n每一个动画片断，第三层的for循环用来\n显示每一个动画片断所对应的png图片\n。这些png图片都是以纹理的方式显示在屏幕中的;
+
+	note right : 为了解决重复创建纹理对\n象，会保存同一张纹理对象到Animation::Frame\n对象的成员变量tid中，\n这样，下次再显示相同的图片时，就可以\n使用前面已经创建好了的纹理对象，\n即调用函数glBindTexture来指定当前\n要操作的纹理对象，如果Region对象\nclearReg所包含的区域不为空，那么在\n调用函数glDrawTexiOES和eglSwapBuffer\n显示每一种png图片之前，首先要将它所包含的区域裁剪\n，避免开机动画可以显示在指定的位置以及大小。
+
+	:每显示完成一张png图片之后，\n都要将变量frameDuration的值转换为\n毫秒，并调用usleep函数来让线程\n睡眠以下，保证能够指定的速度显示;
+
+	if("一个动画片断是否是循环显示的，\n即循环次数不等于1") then (Y)
+	:片断的显示已经结束，\n释放前面为它所创建的纹理对象;
+
+	endif
 
 endif
+
+
+fork again
+
+:<b><size:20>第三个开机画面停止显示的过程分析</size></b>;
+
+start 
+
+:System进程将系统的关键服务启动起来后，\n会将应用启动器启动起来，Launcher组件\n是Activity的根启动器;
+
+:一个Activity组件在启动起来之后，\n就会被记录下来，等到它所运行在的主线程空闲时\n，这个主线程就会向ActivityManagerService\n发送一个Activity组件空闲的通知。\n由于应用程序Launcher是系统第一个被启动\n的应用程序，即它的根Activity组件是\n系统中第一个被启动的Activity组件，因此，\n当ActivityManagerService接收到他的空闲\n通知的时候，就可以系统刚刚被启动起来的;
+
+:ActivityManagerService接收到这个\n消息之后，就会停止显示开机画面，以便于\n可以屏幕中显示应用程序Launcher的界面;
+
+note right : 如何判断线程是否空闲，\n向线程的消息队列注册一个空闲的消息处理器，\n即使重写成员函数queueIdle，没有消息\n需要处理的时候，就认为是空闲了，\nqueueIdle就会被调用。
+
+:ActivityThread类有一个类型为\nActivityClientRecord的成员变量mNewActivities\n，用来描述当前应用程序主线程中新启动\n起来的Activity组件。这些新启动起来的\nActivity组件通过ActivityClient类的\n成员变量nextIdle连接在一起，一旦当前\n应用程序主线程向ActivityManagerService\n发送了这些新启动的Activity组件的空闲\n通知之后，这些新启动的Activity组件就\n不会被保存在Activity类的成员变量\nmNewsActivity中，即每一个新启动的Activity\n组件只有一次机会向ActivityManagerService\n发送一个空闲通知;
+
+note right :向ActivityManagerService\n发送一个Activity组件空闲通知是通过\n调用ActivityManagerService代理对象\n的成员函数activityIdle来实现的，而\nActivityManagerService代理对象可以\n通过调用ActivityManagerNative类的\n静态成员函数getDefault来获得的，而\nActivityManagerProxy类的成员函数activityIdle\n实际上是向ActivityManagerService\n发送一个类型为ACTIVITY_IDLE_TRANSACTION\n的Binder进程间通信请求，其中，\n参数token用来描述与这个进程间通信请求\n所关联的一个Activity组件，这个Activity\n组件即为应用程序Launcher的根Activity组件\nLauncher。
+
+:token用来找到系统Activity组件堆栈中\n的Launcher组件的index，就可以在\nActivityStack类的成员变量mHistory中得到一\n个ActivityRecord对象r，这个r是用来\n描述Launcher组件的;
+
+:ActivityStack类中的mService是\nActivityManagerService，有一个mBooted，\n表示系统是否启动完成;
+
+:从前面的调用过程可以直到，参数\nfromTimeout的值等于false，并且ActivityManagerService\n服务的成员变量mBooted也等于false，那么就说明应用程序已经启动起来了\n，并设置mBooted和enableScreen的值被设\n置为true;
+
+:enableScreen的值等于true的时候，\n就会调用enableScreenAfterBoot停止显示\n开机动画，以便于能够显示应用程序\nLauncher的界面;
+
+:ActivityManagerService类中的成员\n变量mWindowManagerService调用函数\nenbleScreenAfterBoot来停止显示开机画面;
  
-end fork
+:WindowManagerService的成员变量\nmSystemBooted用来记录系统是否已经启动完成\n，未启动完成的话，\n调用成员函数performEnableScreen来执行停止显示开机动画的操作;
+
+:成员函数performEnableScreen是通过\n一个类型IBinder.FIRST_CALL_TRANSACTION\n的进程间通信请求通知\nSurfaceFlinger服务停止显示开机动画的;
+
+:SurfaceFlinger服务的成员函数\nbootFinished实际上通过property_set来\n修改系统属性，并把bootanim的应用程序停止，\n即开机动画也停止显示了;
+
+:;
 
 @enduml
